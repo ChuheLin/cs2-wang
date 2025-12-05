@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------
+# Cactus 主题专用配置
+# ---------------------------------------------------------------
+
+# 1. 配色方案
+colorscheme: white
+
+# 2. 导航栏
+nav:
+  Home: /
+  # About: /about/
+  Writing: /archives/
+  Projects: https://github.com/ChuheLin
+
+# 3. 社交链接：保持克制，放最核心的
+social_links:
+  github: https://github.com/ChuheLin
+  # mail: mailto:your@email.com
+
+# 4. 文章列表显示设置
+posts_overview:
+  show_description: true # 显示文章摘要，更有研报感
+  sort_updated: true # 按更新时间排序
+
+# 5. 语言设置
+language: zh-CN

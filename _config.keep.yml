@@ -1,0 +1,35 @@
+# ==========================================
+# Keep 主题 - 研报风格改装版 (修正版)
+# ==========================================
+
+# 1. 样式设置 (所有的 style 都在这里，不能分开写)
+style:
+  # 黑夜模式开关
+  dark_mode:
+    enable: true
+    default_mode: "auto" # auto=跟随系统, light=默认亮, dark=默认暗
+
+  # 头像设置 (去娱乐化)
+  avatar:
+    url: /images/avatar.png
+    rounded: false # 方形头像，更商务
+    rotated: false # 禁止旋转
+
+  # 首页首屏 (关掉打字机动画)
+  first_screen:
+    enable: false
+
+# 2. 首页文章列表设置
+home_article:
+  category: false # 不显示分类
+  read_more: false # 不显示阅读全文按钮
+
+# 3. 字体设置 (注入灵魂)
+font:
+  enable: true
+  # 强制使用宋体/衬线，营造报纸感
+  font_family: "Georgia, 'Noto Serif SC', 'Songti SC', serif"
+  code_font_family: "Menlo, Monaco, monospace"
+
+menu:
+  关于: /about
