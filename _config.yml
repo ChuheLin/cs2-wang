@@ -3,7 +3,7 @@
 ## Source: https://github.com/hexojs/hexo/
 
 # Site
-title: CS2网|市场观察
+title: 专注饰品价值投资组合，CS饰品价值投资教父
 subtitle: "饰品行情深度分析"
 description: "专注 CS2 饰品投资"
 keywords: CS2, 饰品, 倒狗, 市场分析
@@ -96,7 +96,7 @@ ignore:
 # Extensions
 ## Plugins: https://hexo.io/plugins/
 ## Themes: https://hexo.io/themes/
-theme: keep
+theme: cactus
 
 # Deployment
 ## Docs: https://hexo.io/docs/one-command-deployment

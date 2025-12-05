@@ -14,8 +14,17 @@ nav:
 
 # 3. 社交链接：保持克制，放最核心的
 social_links:
-  github: https://github.com/ChuheLin
-  # mail: mailto:your@email.com
+  - icon: github
+    link: https://github.com/ChuheLin
+    label: GitHub
+
+  - icon: zhihu
+    link: https://www.zhihu.com/people/Fatin
+    label: zhihu
+
+  # - icon: mail
+  #   link: mailto:your@email.com
+  #   label: Email
 
 # 4. 文章列表显示设置
 posts_overview:
