@@ -1,0 +1,39 @@
+name: Auto CS2 News Reporter
+
+on:
+  schedule:
+    # 每天北京时间下午 18:00 (UTC 10:00)
+    - cron: "0 10 * * *"
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必须要有写权限
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          pip install feedparser requests openai
+
+      - name: Run News Bot
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        # 注意这里运行的是 auto_news.py
+        run: python scripts_auto/auto_news.py
+
+      - name: Commit and Push
+        run: |
+          git config --global user.email "newsbot@github.com"
+          git config --global user.name "CS2 News Bot"
+          git add source/_posts/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto: Generated daily news" && git push)
