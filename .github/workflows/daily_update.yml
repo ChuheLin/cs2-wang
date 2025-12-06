@@ -2,14 +2,19 @@ name: CS2 Daily Analyst Bot
 
 on:
   schedule:
-    # 每天北京时间早上 9:00 (UTC时间 1:00)
+    # 每天北京时间早上 9:00
     - cron: "0 1 * * *"
-  # 允许手动点击按钮触发（方便你现在立刻测试）
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # ================= 关键修复点 =================
+    # 给机器人授予写入仓库内容的权限
+    permissions:
+      contents: write
+    # ============================================
 
     steps:
       - name: 下载代码仓库
@@ -26,7 +31,6 @@ jobs:
 
       - name: 运行分析脚本
         env:
-          # 把刚才存的 Secret 传给 Python 脚本
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: python scripts_auto/auto_analyst.py
 
@@ -35,5 +39,5 @@ jobs:
           git config --global user.email "bot@github.com"
           git config --global user.name "CS2 Analyst Bot"
           git add source/_posts/
-          # 如果有新文章生成，才提交
+          # 只有当有新文件生成时才提交
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto: Generated daily report" && git push)
