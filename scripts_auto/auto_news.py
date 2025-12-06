@@ -1,123 +1,97 @@
 import os
-import time
 import datetime
 import feedparser
+import asyncio
+import edge_tts
+import re
 from email.utils import parsedate_to_datetime
 from openai import OpenAI
 
-# ================= 配置区域 =================
 API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 BASE_URL = "https://api.deepseek.com"
+AUDIO_DIR = "source/audio"
 
-# ================= 1. 抓取 24h 内的新闻 =================
-def get_recent_news():
-    print("📰 正在连接 HLTV 新闻中心...")
+if not os.path.exists(AUDIO_DIR): os.makedirs(AUDIO_DIR)
+
+# 1. 抓取 HLTV 24h 新闻
+def get_news():
+    print("📰 正在抓取 HLTV...")
     try:
-        # HLTV 全球新闻源
         feed = feedparser.parse("https://www.hltv.org/rss/news")
-        
-        recent_news = []
+        recent = []
         now = datetime.datetime.now(datetime.timezone.utc)
         
-        for entry in feed.entries:
-            # 解析发布时间
+        for e in feed.entries:
             try:
-                # 尝试解析 RSS 的时间格式
-                published_time = parsedate_to_datetime(entry.published)
-                
-                # 计算时间差
-                time_diff = now - published_time
-                
-                # 【核心逻辑】只取过去 24 小时内的新闻
-                if time_diff.total_seconds() <= 24 * 3600:
-                    recent_news.append({
-                        "title": entry.title,
-                        "summary": entry.description,
-                        "link": entry.link,
-                        "time": published_time.strftime("%H:%M") # 只保留时分
-                    })
-            except:
-                continue
+                pub = parsedate_to_datetime(e.published)
+                if (now - pub).total_seconds() <= 86400: # 24小时内
+                    recent.append(f"- {e.title}: {e.description}")
+            except: continue
+        return "\n".join(recent)
+    except: return None
 
-        return recent_news
-    except Exception as e:
-        print(f"❌ 获取新闻失败: {e}")
-        return []
-
-# ================= 2. 格式化给 AI =================
-def format_for_ai(news_list):
-    if not news_list:
-        return None
-    
-    text = f"【过去 24 小时共有 {len(news_list)} 条重要新闻】\n"
-    for item in news_list:
-        text += f"- [{item['time']}] {item['title']}: {item['summary']} (原文: {item['link']})\n"
-    return text
-
-# ================= 3. DeepSeek 主编总结 =================
-def generate_news_report(news_context):
-    if not news_context:
-        print("📭 过去 24h 没有新闻，跳过生成。")
-        return None
-        
-    if not API_KEY: return "Error: No API Key"
-    
-    print("🧠 DeepSeek 主编正在审稿...")
+# 2. AI 总结
+def ai_summary(news_txt):
+    if not API_KEY or not news_txt: return None
+    print("🧠 主编正在审稿...")
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
     
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    prompt = f"""
+    你是由 HLTV 认证的 CS2 电竞主编。请把以下英文快讯总结成一份中文"CS2 日报"。
+    快讯：\n{news_txt}
     
-    system_prompt = """
-    你是由 HLTV 和 完美世界电竞 联合培养的资深 CS2 新闻主编。
-    你的任务是将碎片化的快讯整合成一篇**"CS2 日报"**。
-    
-    **写作要求：**
-    1. **分类汇总**：不要流水账！必须将新闻分为【赛事战报】、【战队转会】、【版本更新】、【社区杂谈】等板块。
-    2. **去伪存真**：去除无关紧要的小新闻，只保留大事件。
-    3. **人话总结**：用简洁、专业的电竞媒体口吻（类似"从 HLTV 获悉..."）。
-    4. **包含链接**：在每个大事件末尾，保留一个原文链接 [Link]。
-    
-    **文章结构：**
-    - **【头条重磅】**：今日最重要的一件事（一定要有）。
-    - **【分类资讯】**：分板块总结。
-    - **【主编锐评】**：用一句话点评今日的圈子氛围（幽默或犀利）。
+    要求：
+    1. 分板块：【赛事战报】、【战队变动】、【社区资讯】。
+    2. 语气专业、干练。
+    3. 适合做成广播稿朗读。
     """
     
-    response = client.chat.completions.create(
+    resp = client.chat.completions.create(
         model="deepseek-chat",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"日期: {today}\n\n{news_context}"}
-        ],
+        messages=[{"role": "user", "content": prompt}],
         stream=False
     )
-    return response.choices[0].message.content
+    return resp.choices[0].message.content
 
-# ================= 4. 保存文章 =================
-def save_news(content):
-    if not content: return
-    
+# 3. TTS
+async def gen_audio(text, filename):
+    print("🎙️ 生成日报语音...")
+    clean = re.sub(r'[\*\#\-]', '', text)
+    tts = edge_tts.Communicate(f"大家好，这里是 CS2 全球战报。{clean}", "zh-CN-YunxiNeural")
+    await tts.save(f"{AUDIO_DIR}/{filename}")
+
+# 4. 保存
+def save_file(content, audio_name):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    time_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    md = f"""---
-title: {today} CS2 全球战报：HLTV每日要闻速递
-date: {time_now}
-tags: [CS2新闻, 电竞资讯, 赛事战报]
-categories: 每日日报
-description: 过去24小时 CS2 圈发生了什么？DeepSeek 自动聚合 HLTV 最新资讯，为您带来最纯粹的电竞日报。
----
+    player = f"""
+<div style="background:#eef2ff;padding:12px;border-radius:8px;margin-bottom:20px;">
+  <div style="font-weight:bold;margin-bottom:8px;">📻 电竞日报 (点击收听)</div>
+  <audio controls style="width:100%;"><source src="/audio/{audio_name}" type="audio/mpeg"></audio>
+</div>"""
 
+    md = f"""---
+title: {today} CS2 全球战报：HLTV 每日速递
+date: {now}
+tags: [电竞新闻, CS2资讯, 播客]
+description: 过去24小时圈内大事一览。DeepSeek 自动聚合生成。
+---
+{player}
 {content}
 """
-    filename = f"source/_posts/{today}-daily-news.md"
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(md)
-    print(f"✅ 日报生成完毕: {filename}")
+    fname = f"source/_posts/{today}-news.md"
+    with open(fname, 'w', encoding='utf-8') as f: f.write(md)
+    print(f"✅ 完成: {fname}")
+
+async def main():
+    news = get_news()
+    if news:
+        report = ai_summary(news)
+        if report:
+            audio_name = f"{datetime.datetime.now().strftime('%Y%m%d')}_news.mp3"
+            await gen_audio(report, audio_name)
+            save_file(report, audio_name)
 
 if __name__ == "__main__":
-    recent_news = get_recent_news()
-    context = format_for_ai(recent_news)
-    if context:
-        report = generate_news_report(context)
-        save_news(report)
+    asyncio.run(main())

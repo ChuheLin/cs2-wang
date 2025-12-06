@@ -1,0 +1,63 @@
+name: CS2 Auto Blog Matrix
+
+on:
+  schedule:
+    # 1. 早上 09:00 (UTC 01:00) 跑量化研报
+    - cron: "0 1 * * *"
+    # 2. 晚上 18:00 (UTC 10:00) 跑电竞新闻
+    - cron: "0 10 * * *"
+  workflow_dispatch: # 允许手动点按钮
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必须给写权限！！
+
+    steps:
+      - name: 下载代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: 安装依赖
+        run: pip install -r scripts_auto/requirements.txt
+
+      - name: 运行逻辑判断
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          # 获取当前小时 (UTC)
+          CURRENT_HOUR=$(date -u +%H)
+
+          # 如果是 UTC 01点 (北京09点) -> 跑分析师脚本
+          if [ "$CURRENT_HOUR" -eq "01" ]; then
+            echo "Running Market Analyst..."
+            python scripts_auto/auto_analyst.py
+            
+          # 如果是 UTC 10点 (北京18点) -> 跑新闻脚本
+          elif [ "$CURRENT_HOUR" -eq "10" ]; then
+            echo "Running News Editor..."
+            python scripts_auto/auto_news.py
+            
+          # 如果是手动触发 (workflow_dispatch)，两个都跑一遍测试
+          else
+            echo "Manual Trigger detected. Running BOTH scripts for testing..."
+            python scripts_auto/auto_analyst.py
+            python scripts_auto/auto_news.py
+          fi
+
+      - name: 提交并推送
+        run: |
+          git config --global user.email "bot@cs2.wang"
+          git config --global user.name "CS2 AI Bot"
+
+          # 添加文章和音频
+          git add source/_posts/
+          git add source/audio/
+
+          # 有变动才提交
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto: Update blog content [skip ci]" && git push)
