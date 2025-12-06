@@ -1,6 +1,6 @@
 requests
 feedparser
 openai
-git+https://github.com/rany2/edge-tts.git@master  # 直接拉取作者的最新源码
+gTTS
 asyncio
 aiohttp

@@ -3,8 +3,8 @@ import datetime
 import requests
 import json
 import asyncio
-import edge_tts
 import re
+from gtts import gTTS
 from openai import OpenAI
 
 API_KEY = os.environ.get("DEEPSEEK_API_KEY")
@@ -16,7 +16,7 @@ if not os.path.exists(AUDIO_DIR):
     os.makedirs(AUDIO_DIR)
 
 def get_bulk_data():
-    print("🌍 正在下载全网数据 (约 10MB)...")
+    print("🌍 正在下载全网数据...")
     try:
         resp = requests.get(BULK_API, timeout=60)
         if resp.status_code == 200:
@@ -48,9 +48,9 @@ def scan_market(items):
     return top_under, top_over
 
 def format_data(u, o):
-    txt = "【量化扫描结果】\n📉 低估区 (击球区):\n"
+    txt = "【量化扫描结果】\n📉 低估区:\n"
     for i in u: txt += f"- {i['name']}: ¥{i['price']:.1f} (偏离 {i['dev']:.1f}%)\n"
-    txt += "\n🔥 过热区 (风险区):\n"
+    txt += "\n🔥 过热区:\n"
     for i in o: txt += f"- {i['name']}: ¥{i['price']:.1f} (偏离 +{i['dev']:.1f}%)\n"
     return txt
 
@@ -58,17 +58,18 @@ def write_report(data_str):
     if not API_KEY: return None
     print("🧠 AI 分析师正在撰写...")
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
-    prompt = f"你是一位推崇段永平价值投资的 CS2 分析师。请基于以下数据写一篇研报。\n数据：\n{data_str}\n要求：标题不含markdown，分三部分（情绪、洼地、风险），结尾引用投资名言。"
+    prompt = f"你是一位CS2分析师。基于数据写研报。\n数据：\n{data_str}\n要求：标题无markdown，分三部分（情绪、洼地、风险），结尾引用投资名言。"
     resp = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "user", "content": prompt}], stream=False)
     return resp.choices[0].message.content
 
-# TTS 容错版
-async def gen_audio(text, filename):
-    print("🎙️ 正在生成语音...")
+# 核心修改：切换到 Google TTS
+def gen_audio(text, filename):
+    print("🎙️ Google 正在生成语音...")
     try:
         clean = re.sub(r'[\*\#\-]', '', text)
-        tts = edge_tts.Communicate(f"欢迎收听 CS2 价值研报。{clean}", "zh-CN-YunxiNeural")
-        await tts.save(f"{AUDIO_DIR}/{filename}")
+        # lang='zh-cn' 是谷歌的中文语音
+        tts = gTTS(text=f"欢迎收听 CS2 价值研报。{clean}", lang='zh-cn')
+        tts.save(f"{AUDIO_DIR}/{filename}")
         return True
     except Exception as e:
         print(f"⚠️ 语音生成失败: {e}")
@@ -77,11 +78,9 @@ async def gen_audio(text, filename):
 def save_file(content, audio_name):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
     player = ""
     if audio_name:
-        player = f"""<div style="background:#f4f4f5;padding:12px;border-radius:8px;margin-bottom:20px;"><div style="font-weight:bold;margin-bottom:8px;">🎧 AI 语音分析 (点击播放)</div><audio controls style="width:100%;"><source src="/audio/{audio_name}" type="audio/mpeg"></audio></div>"""
-
+        player = f"""<div style="background:#f4f4f5;padding:12px;border-radius:8px;margin-bottom:20px;"><div style="font-weight:bold;margin-bottom:8px;">🎧 AI 语音播报 (Google引擎)</div><audio controls style="width:100%;"><source src="/audio/{audio_name}" type="audio/mpeg"></audio></div>"""
     md = f"""---
 title: {today} 市场量化扫描：寻找价值洼地
 date: {now}
@@ -104,7 +103,8 @@ async def main():
     
     if report:
         audio_name = f"{datetime.datetime.now().strftime('%Y%m%d')}_quant.mp3"
-        success = await gen_audio(report, audio_name)
+        # 注意：这里去掉了 await，因为 gTTS 是同步的
+        success = gen_audio(report, audio_name)
         final_audio_name = audio_name if success else None
         save_file(report, final_audio_name)
 

@@ -24,7 +24,9 @@ jobs:
           python-version: "3.9"
 
       - name: 安装依赖
-        run: pip install -r scripts_auto/requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install -r scripts_auto/requirements.txt
 
       - name: 运行逻辑判断
         env:

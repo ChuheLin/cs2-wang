@@ -2,8 +2,8 @@ import os
 import datetime
 import feedparser
 import asyncio
-import edge_tts
 import re
+from gtts import gTTS
 from email.utils import parsedate_to_datetime
 from openai import OpenAI
 
@@ -13,78 +13,52 @@ AUDIO_DIR = "source/audio"
 
 if not os.path.exists(AUDIO_DIR): os.makedirs(AUDIO_DIR)
 
-# 1. 抓取 HLTV 24h 新闻
 def get_news():
     print("📰 正在抓取 HLTV...")
     try:
         feed = feedparser.parse("https://www.hltv.org/rss/news")
         recent = []
         now = datetime.datetime.now(datetime.timezone.utc)
-        
         for e in feed.entries:
             try:
                 pub = parsedate_to_datetime(e.published)
-                if (now - pub).total_seconds() <= 86400: # 24小时内
+                if (now - pub).total_seconds() <= 86400:
                     recent.append(f"- {e.title}: {e.description}")
             except: continue
         return "\n".join(recent)
     except: return None
 
-# 2. AI 总结
 def ai_summary(news_txt):
     if not API_KEY or not news_txt: return None
     print("🧠 主编正在审稿...")
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
-    
-    prompt = f"""
-    你是由 HLTV 认证的 CS2 电竞主编。请把以下英文快讯总结成一份中文"CS2 日报"。
-    快讯：\n{news_txt}
-    
-    要求：
-    1. 分板块：【赛事战报】、【战队变动】、【社区资讯】。
-    2. 语气专业、干练。
-    3. 适合做成广播稿朗读。
-    """
-    
-    resp = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[{"role": "user", "content": prompt}],
-        stream=False
-    )
+    prompt = f"你是由 HLTV 认证的 CS2 电竞主编。把以下快讯总结成中文日报。\n快讯：\n{news_txt}\n要求：分板块，语气专业，适合朗读。"
+    resp = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "user", "content": prompt}], stream=False)
     return resp.choices[0].message.content
 
-# 3. TTS (增加容错机制)
-async def gen_audio(text, filename):
-    print("🎙️ 生成日报语音...")
+# 核心修改：Google TTS
+def gen_audio(text, filename):
+    print("🎙️ Google 正在生成语音...")
     try:
         clean = re.sub(r'[\*\#\-]', '', text)
-        # 使用 communicate 对象生成
-        tts = edge_tts.Communicate(f"大家好，这里是 CS2 全球战报。{clean}", "zh-CN-YunxiNeural")
-        await tts.save(f"{AUDIO_DIR}/{filename}")
-        return True # 成功
+        tts = gTTS(text=f"这里是 CS2 全球战报。{clean}", lang='zh-cn')
+        tts.save(f"{AUDIO_DIR}/{filename}")
+        return True
     except Exception as e:
-        print(f"⚠️ 语音生成失败 (微软接口风控): {e}")
-        return False # 失败
+        print(f"⚠️ 语音生成失败: {e}")
+        return False
 
-# 4. 保存
 def save_file(content, audio_name):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # 只有当 audio_name 有值时，才插入播放器
     player = ""
     if audio_name:
-        player = f"""
-<div style="background:#eef2ff;padding:12px;border-radius:8px;margin-bottom:20px;">
-  <div style="font-weight:bold;margin-bottom:8px;">📻 电竞日报 (点击收听)</div>
-  <audio controls style="width:100%;"><source src="/audio/{audio_name}" type="audio/mpeg"></audio>
-</div>"""
-
+        player = f"""<div style="background:#eef2ff;padding:12px;border-radius:8px;margin-bottom:20px;"><div style="font-weight:bold;margin-bottom:8px;">📻 电竞日报 (Google引擎)</div><audio controls style="width:100%;"><source src="/audio/{audio_name}" type="audio/mpeg"></audio></div>"""
     md = f"""---
 title: {today} CS2 全球战报：HLTV 每日速递
 date: {now}
 tags: [电竞新闻, CS2资讯, 播客]
-description: 过去24小时圈内大事一览。DeepSeek 自动聚合生成。
+description: 过去24小时圈内大事一览。
 ---
 {player}
 {content}
@@ -98,12 +72,10 @@ async def main():
     if news:
         report = ai_summary(news)
         if report:
-            # 尝试生成音频
-            audio_filename = f"{datetime.datetime.now().strftime('%Y%m%d')}_news.mp3"
-            success = await gen_audio(report, audio_filename)
-            
-            # 如果生成失败，传入 None，这样就不会插入播放器，但文章照样发
-            final_audio_name = audio_filename if success else None
+            audio_name = f"{datetime.datetime.now().strftime('%Y%m%d')}_news.mp3"
+            # 去掉 await
+            success = gen_audio(report, audio_name)
+            final_audio_name = audio_name if success else None
             save_file(report, final_audio_name)
 
 if __name__ == "__main__":
