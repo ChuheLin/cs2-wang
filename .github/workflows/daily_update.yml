@@ -1,0 +1,39 @@
+name: CS2 Daily Analyst Bot
+
+on:
+  schedule:
+    # 每天北京时间早上 9:00 (UTC时间 1:00)
+    - cron: "0 1 * * *"
+  # 允许手动点击按钮触发（方便你现在立刻测试）
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 下载代码仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Python 环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: 安装依赖库
+        run: |
+          pip install feedparser requests openai
+
+      - name: 运行分析脚本
+        env:
+          # 把刚才存的 Secret 传给 Python 脚本
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: python scripts_auto/auto_analyst.py
+
+      - name: 提交并推送到 GitHub
+        run: |
+          git config --global user.email "bot@github.com"
+          git config --global user.name "CS2 Analyst Bot"
+          git add source/_posts/
+          # 如果有新文章生成，才提交
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto: Generated daily report" && git push)
