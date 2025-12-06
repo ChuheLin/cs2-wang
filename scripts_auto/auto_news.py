@@ -53,19 +53,28 @@ def ai_summary(news_txt):
     )
     return resp.choices[0].message.content
 
-# 3. TTS
+# 3. TTS (增加容错机制)
 async def gen_audio(text, filename):
     print("🎙️ 生成日报语音...")
-    clean = re.sub(r'[\*\#\-]', '', text)
-    tts = edge_tts.Communicate(f"大家好，这里是 CS2 全球战报。{clean}", "zh-CN-YunxiNeural")
-    await tts.save(f"{AUDIO_DIR}/{filename}")
+    try:
+        clean = re.sub(r'[\*\#\-]', '', text)
+        # 使用 communicate 对象生成
+        tts = edge_tts.Communicate(f"大家好，这里是 CS2 全球战报。{clean}", "zh-CN-YunxiNeural")
+        await tts.save(f"{AUDIO_DIR}/{filename}")
+        return True # 成功
+    except Exception as e:
+        print(f"⚠️ 语音生成失败 (微软接口风控): {e}")
+        return False # 失败
 
 # 4. 保存
 def save_file(content, audio_name):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    player = f"""
+    # 只有当 audio_name 有值时，才插入播放器
+    player = ""
+    if audio_name:
+        player = f"""
 <div style="background:#eef2ff;padding:12px;border-radius:8px;margin-bottom:20px;">
   <div style="font-weight:bold;margin-bottom:8px;">📻 电竞日报 (点击收听)</div>
   <audio controls style="width:100%;"><source src="/audio/{audio_name}" type="audio/mpeg"></audio>
@@ -89,9 +98,13 @@ async def main():
     if news:
         report = ai_summary(news)
         if report:
-            audio_name = f"{datetime.datetime.now().strftime('%Y%m%d')}_news.mp3"
-            await gen_audio(report, audio_name)
-            save_file(report, audio_name)
+            # 尝试生成音频
+            audio_filename = f"{datetime.datetime.now().strftime('%Y%m%d')}_news.mp3"
+            success = await gen_audio(report, audio_filename)
+            
+            # 如果生成失败，传入 None，这样就不会插入播放器，但文章照样发
+            final_audio_name = audio_filename if success else None
+            save_file(report, final_audio_name)
 
 if __name__ == "__main__":
     asyncio.run(main())

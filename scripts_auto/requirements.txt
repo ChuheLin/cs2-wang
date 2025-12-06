@@ -1,5 +1,6 @@
 requests
 feedparser
 openai
-edge-tts
+edge-tts>=6.1.9  # 指定最低版本，修复微软 401 问题
 asyncio
+aiohttp
