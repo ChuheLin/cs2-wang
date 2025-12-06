@@ -1,6 +1,6 @@
 requests
 feedparser
 openai
-edge-tts>=6.1.9  # 指定最低版本，修复微软 401 问题
+git+https://github.com/rany2/edge-tts.git@master  # 直接拉取作者的最新源码
 asyncio
 aiohttp
